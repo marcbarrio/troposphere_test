@@ -4,6 +4,49 @@ Outputs:
       Name: !Sub '${AWS::StackName}-TestSubnet'
     Value: !Ref 'TestSubnet'
 Resources:
+  AppSecurityGroup:
+    Properties:
+      GroupDescription: Enable HTTP access to the instance
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+    Type: AWS::EC2::SecurityGroup
+  ApplicationInstance:
+    Properties:
+      ImageId: ami-064736ff8301af3ee
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref 'AppSecurityGroup'
+      SubnetId: !ImportValue
+        Ref: TestSubnet
+      Tags:
+        - Key: Name
+          Value: Ec2 instance to hold our application
+        - Key: Subnet
+          Value: Belonging to the subnet 'TestSubnet'
+      UserData: !Base64 "\n    #!/bin/bash -xe\n    sudo apt-get update\n    sudo apt-get install ca-certificates curl gnupg lsb-release\n    sudo mkdir -p /etc/apt/keyrings\n    curl -fsSL https://download.docker.com/linux/ubuntu/gpg\
+        \ | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n    echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release\
+        \ -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null\n    sudo apt-get update\n    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin\n    sudo\
+        \ usermod -aG docker ubuntu\n"
+    Type: AWS::EC2::Instance
+  ApplicationLoadBalancer:
+    Properties:
+      Name: ApplicationELB
+      Scheme: internet-facing
+      Subnets:
+        - !Ref 'TestSubnet'
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  Listener:
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'app80'
+          Type: forward
+      LoadBalancerArn: !Ref 'ApplicationLoadBalancer'
+      Port: '80'
+      Protocol: HTTP
+    Type: AWS::ElasticLoadBalancingV2::Listener
   TestSubnet:
     Properties:
       AvailabilityZone: eu-west-3c
@@ -22,3 +65,20 @@ Resources:
         - Key: Name
           Value: VPC for troposphere exercise
     Type: AWS::EC2::VPC
+  app80:
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: '10'
+      HealthyThresholdCount: '4'
+      Matcher:
+        HttpCode: '200'
+      Name: appTarget
+      Port: '80'
+      Protocol: HTTP
+      Targets:
+        - Id: !Ref 'ApplicationInstance'
+          Port: '80'
+      UnhealthyThresholdCount: '3'
+      VpcId: !Ref 'VPC'
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
