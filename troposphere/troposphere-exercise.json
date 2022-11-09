@@ -1,0 +1,48 @@
+{
+ "Outputs": {
+  "outputSubnet": {
+   "Export": {
+    "Name": {
+     "Fn::Sub": "${AWS::StackName}-TestSubnet"
+    }
+   },
+   "Value": {
+    "Ref": "TestSubnet"
+   }
+  }
+ },
+ "Resources": {
+  "TestSubnet": {
+   "Properties": {
+    "AvailabilityZone": "eu-west-3c",
+    "CidrBlock": "10.0.0.0/24",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "Subnet for troposphere exercise"
+     },
+     {
+      "Key": "Zone & Block",
+      "Value": "eu-west-3c (Paris) & 10.0.0.0/24"
+     }
+    ],
+    "VpcId": {
+     "Ref": "VPC"
+    }
+   },
+   "Type": "AWS::EC2::Subnet"
+  },
+  "VPC": {
+   "Properties": {
+    "CidrBlock": "10.0.0.0/24",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "VPC for troposphere exercise"
+     }
+    ]
+   },
+   "Type": "AWS::EC2::VPC"
+  }
+ }
+}
