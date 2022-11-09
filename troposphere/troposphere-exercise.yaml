@@ -19,8 +19,7 @@ Resources:
       InstanceType: t2.micro
       SecurityGroups:
         - !Ref 'AppSecurityGroup'
-      SubnetId: !ImportValue
-        Ref: TestSubnet
+      SubnetId: !Ref 'TestSubnet'
       Tags:
         - Key: Name
           Value: Ec2 instance to hold our application
@@ -57,7 +56,7 @@ Resources:
       Tags:
         - Key: Name
           Value: Subnet for troposphere exercise
-        - Key: Zone & Block
+        - Key: ZoneBlock
           Value: eu-west-3c (Paris) & 10.0.0.0/24
       VpcId: !Ref 'VPC'
     Type: AWS::EC2::Subnet

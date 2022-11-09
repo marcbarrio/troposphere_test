@@ -28,15 +28,25 @@ vpc = template.add_resource(
 )
 
 #Creation of Subnet with same CidrBlock as VPC and the VPC id from the previously created.
-subnet = ec2.Subnet("TestSubnet")
+subnet = ec2.Subnet(
+    "TestSubnet",
+    AvailabilityZone="eu-west-3c",
+    CidrBlock="10.0.0.0/24",
+    VpcId=Ref(vpc),
+    Tags=Tags(
+        Name="Subnet for troposphere exercise",
+        ZoneBlock="eu-west-3c (Paris) & 10.0.0.0/24"
+    )
+)
+#subnet = ec2.Subnet("TestSubnet")
 
-subnet.AvailabilityZone = "eu-west-3c"
-subnet.CidrBlock = "10.0.0.0/24"
-subnet.VpcId = Ref(vpc)
-subnet.Tags = [
-    {"Key" : "Name", "Value" : "Subnet for troposphere exercise"},
-    {"Key" : "Zone & Block", "Value" : "eu-west-3c (Paris) & 10.0.0.0/24"}
-]
+#subnet.AvailabilityZone = "eu-west-3c"
+#subnet.CidrBlock = "10.0.0.0/24"
+#subnet.VpcId = Ref(vpc)
+#subnet.Tags = [
+#    {"Key" : "Name", "Value" : "Subnet for troposphere exercise"},
+#    {"Key" : "Zone & Block", "Value" : "eu-west-3c (Paris) & 10.0.0.0/24"}
+#]
 
 template.add_resource(subnet)
 
@@ -54,8 +64,8 @@ ec2Instance.ImageId = "ami-064736ff8301af3ee"
 #Instance type t2.micro 1vCPU 1GiB Mem //Free tier elegible
 ec2Instance.InstanceType = "t2.micro"
 # If the subnet creation and the ec2 instance creation would be done in separate stacks (which would be the way to go if the subnet was to be used by more AWS resources)
-# we could add the value of the SubnetId with the Export output value we assigned to the subnet.
-ec2Instance.SubnetId = ImportValue(Ref(subnet))
+# we could add the value of the SubnetId with the Export output value we assigned to the subnet using the ImportValue function.
+ec2Instance.SubnetId = Ref(subnet)
 ec2Instance.Tags = [
     {"Key" : "Name", "Value" : "Ec2 instance to hold our application"},
     {"Key" : "Subnet", "Value" : "Belonging to the subnet 'TestSubnet'"}

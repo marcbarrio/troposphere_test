@@ -36,9 +36,7 @@
      }
     ],
     "SubnetId": {
-     "Fn::ImportValue": {
-      "Ref": "TestSubnet"
-     }
+     "Ref": "TestSubnet"
     },
     "Tags": [
      {
@@ -102,7 +100,7 @@
       "Value": "Subnet for troposphere exercise"
      },
      {
-      "Key": "Zone & Block",
+      "Key": "ZoneBlock",
       "Value": "eu-west-3c (Paris) & 10.0.0.0/24"
      }
     ],
