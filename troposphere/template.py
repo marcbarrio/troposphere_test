@@ -7,6 +7,13 @@ from troposphere import Tags, Ref, Sub, Export, ImportValue, Base64
 from troposphere import Template, Output
 from troposphere import elasticloadbalancingv2 as elb
 
+###########Comments#############
+#All these resources: Subnet, VPC, Ec2 Instance & LoadBalancer are created within the same CloudFormation Stack
+#In a real environment those would be created within separate stacks for when we need to change/remove any of them it would not affect to the rest
+################################
+
+
+
 template = Template()
 
 #Creation of VPC with CDIR Block 10.0.0.0/24 And a Tag name
@@ -92,7 +99,10 @@ loadBalancer = elb.LoadBalancer(
     "ApplicationLoadBalancer",
     Name="ApplicationELB",
     Scheme="internet-facing",
-    Subnets=[Ref(subnet)]
+    Subnets=[Ref(subnet)],
+    Tags=Tags(
+        Name="ApplicationELB"
+    )
 )
 template.add_resource(loadBalancer)
 

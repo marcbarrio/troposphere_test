@@ -37,6 +37,9 @@ Resources:
       Scheme: internet-facing
       Subnets:
         - !Ref 'TestSubnet'
+      Tags:
+        - Key: Name
+          Value: ApplicationELB
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
   Listener:
     Properties:

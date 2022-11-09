@@ -64,6 +64,12 @@
      {
       "Ref": "TestSubnet"
      }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "ApplicationELB"
+     }
     ]
    },
    "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer"
