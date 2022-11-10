@@ -105,7 +105,49 @@ subnet2 = ec2.Subnet(
 
 template.add_resource(subnet2)
 
+# Creating ACL
+networkACL = ec2.NetworkAcl(
+    "NetworkACL",
+    VpcId=Ref(vpc),
+    Tags=Tags(
+        Description="ACL for VPC"
+    )
+)
+template.add_resource(networkACL)
 
+#Inbound ACL entry for port 80 TCP (HTTP) traffic
+inBoundHTTPEntry = ec2.NetworkAclEntry(
+    "inboundHTTPentry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="100",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="80", From="80"),
+    Egress="false",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(inBoundHTTPEntry)
+
+#Inbound ACL entry for port 22 TCP (SSH) Traffic
+inBoundSSHEntry = ec2.NetworkAclEntry(
+    "inboundSSHentry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="101",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="22", From="22"),
+    Egress="false",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(inBoundSSHEntry)
+
+#Subnet Network ACL Associaton
+subnetAclAssociation = ec2.SubnetNetworkAclAssociation(
+    "SubnetNetworkAclAssociation",
+    SubnetId=Ref(subnet),
+    NetworkAclId=Ref(networkACL)
+)
+template.add_resource(subnetAclAssociation)
 
 #Using userdata for Ec2 to install Docker automatically since our application will be using docker.
 userDataDockerInstall = """
@@ -131,6 +173,12 @@ instancesg = ec2.SecurityGroup(
             FromPort="80",
             ToPort="80",
             CidrIp="0.0.0.0/0"
+        ),
+        ec2.SecurityGroupRule(
+            IpProtocol="tcp",
+            FromPort="22",
+            ToPort="22",
+            CidrIp="79.152.131.9/32"
         )
     ]
 )
