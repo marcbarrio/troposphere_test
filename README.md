@@ -1,5 +1,5 @@
 # Comments
-
+URL to application: [marcbarrio.hopto.org](http://marcbarrio.hopto.org)
 All these resources: **Subnet, VPC, Ec2 Instance & LoadBalancer** are created within the same CloudFormation Stack.
 
 In a real environment those would be created within separate stacks (Different scripts for VPC, LoadBalancer, Ec2 instance) for when we need to change/remove any of them it would not affect to the rest.
