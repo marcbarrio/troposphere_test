@@ -2,7 +2,9 @@
 
 All these resources: **Subnet, VPC, Ec2 Instance & LoadBalancer** are created within the same CloudFormation Stack.
 
-In a real environment those would be created within separate stacks for when we need to change/remove any of them it would not affect to the rest
+In a real environment those would be created within separate stacks (Different scripts for VPC, LoadBalancer, Ec2 instance) for when we need to change/remove any of them it would not affect to the rest.
+
+Inside the Python script (template.py) there are several comments that explain each part and some thoughts.
 
 # Creating the template
 

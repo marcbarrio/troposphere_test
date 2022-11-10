@@ -11,6 +11,12 @@
    }
   }
  },
+ "Parameters": {
+  "KeyName": {
+   "Description": "Name of an EC2 KeyPair to enable SSH",
+   "Type": "AWS::EC2::KeyPair::KeyName"
+  }
+ },
  "Resources": {
   "AppSecurityGroup": {
    "Properties": {
@@ -21,8 +27,17 @@
       "FromPort": "80",
       "IpProtocol": "tcp",
       "ToPort": "80"
+     },
+     {
+      "CidrIp": "79.152.131.9/32",
+      "FromPort": "22",
+      "IpProtocol": "tcp",
+      "ToPort": "22"
      }
-    ]
+    ],
+    "VpcId": {
+     "Ref": "VPC"
+    }
    },
    "Type": "AWS::EC2::SecurityGroup"
   },
@@ -30,14 +45,24 @@
    "Properties": {
     "ImageId": "ami-064736ff8301af3ee",
     "InstanceType": "t2.micro",
-    "SecurityGroups": [
+    "KeyName": {
+     "Ref": "KeyName"
+    },
+    "NetworkInterfaces": [
      {
-      "Ref": "AppSecurityGroup"
+      "AssociatePublicIpAddress": true,
+      "DeleteOnTermination": true,
+      "DeviceIndex": "0",
+      "GroupSet": [
+       {
+        "Ref": "AppSecurityGroup"
+       }
+      ],
+      "SubnetId": {
+       "Ref": "TestSubnet"
+      }
      }
     ],
-    "SubnetId": {
-     "Ref": "TestSubnet"
-    },
     "Tags": [
      {
       "Key": "Name",
@@ -49,7 +74,22 @@
      }
     ],
     "UserData": {
-     "Fn::Base64": "\n    #!/bin/bash -xe\n    sudo apt-get update\n    sudo apt-get install ca-certificates curl gnupg lsb-release\n    sudo mkdir -p /etc/apt/keyrings\n    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n    echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null\n    sudo apt-get update\n    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin\n    sudo usermod -aG docker ubuntu\n"
+     "Fn::Base64": {
+      "Fn::Join": [
+       "",
+       [
+        "#!/bin/bash -xe\n",
+        "sudo apt-get update\n",
+        "sudo apt-get install -y ca-certificates curl gnupg lsb-release\n",
+        "sudo mkdir -p /etc/apt/keyrings\n",
+        "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n",
+        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null\n",
+        "sudo apt-get update\n",
+        "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin\n",
+        "sudo usermod -aG docker ubuntu\n"
+       ]
+      ]
+     }
     }
    },
    "Type": "AWS::EC2::Instance"
@@ -61,6 +101,9 @@
     "Subnets": [
      {
       "Ref": "TestSubnet"
+     },
+     {
+      "Ref": "TestSubnet2"
      }
     ],
     "Tags": [
@@ -71,6 +114,28 @@
     ]
    },
    "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer"
+  },
+  "GatewayAttachment": {
+   "Properties": {
+    "InternetGatewayId": {
+     "Ref": "InternetGateway"
+    },
+    "VpcId": {
+     "Ref": "VPC"
+    }
+   },
+   "Type": "AWS::EC2::VPCGatewayAttachment"
+  },
+  "InternetGateway": {
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Description",
+      "Value": "Internet gateway attached to VPC"
+     }
+    ]
+   },
+   "Type": "AWS::EC2::InternetGateway"
   },
   "Listener": {
    "Properties": {
@@ -89,6 +154,69 @@
     "Protocol": "HTTP"
    },
    "Type": "AWS::ElasticLoadBalancingV2::Listener"
+  },
+  "NetworkACL": {
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Description",
+      "Value": "ACL for VPC"
+     }
+    ],
+    "VpcId": {
+     "Ref": "VPC"
+    }
+   },
+   "Type": "AWS::EC2::NetworkAcl"
+  },
+  "Route": {
+   "DependsOn": "GatewayAttachment",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "GatewayId": {
+     "Ref": "InternetGateway"
+    },
+    "RouteTableId": {
+     "Ref": "RouteTable"
+    }
+   },
+   "Type": "AWS::EC2::Route"
+  },
+  "RouteTable": {
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Description",
+      "Value": "Routetable for our VPC"
+     }
+    ],
+    "VpcId": {
+     "Ref": "VPC"
+    }
+   },
+   "Type": "AWS::EC2::RouteTable"
+  },
+  "SubnetNetworkAclAssociation": {
+   "Properties": {
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "SubnetId": {
+     "Ref": "TestSubnet"
+    }
+   },
+   "Type": "AWS::EC2::SubnetNetworkAclAssociation"
+  },
+  "SubnetRouteTableAssociation": {
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "RouteTable"
+    },
+    "SubnetId": {
+     "Ref": "TestSubnet"
+    }
+   },
+   "Type": "AWS::EC2::SubnetRouteTableAssociation"
   },
   "TestSubnet": {
    "Properties": {
@@ -110,9 +238,29 @@
    },
    "Type": "AWS::EC2::Subnet"
   },
+  "TestSubnet2": {
+   "Properties": {
+    "AvailabilityZone": "eu-west-3a",
+    "CidrBlock": "10.0.1.0/24",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "Subnet for ELB required input"
+     },
+     {
+      "Key": "ZoneBlock",
+      "Value": "eu-west-3a (Paris) & 10.0.1.0/24"
+     }
+    ],
+    "VpcId": {
+     "Ref": "VPC"
+    }
+   },
+   "Type": "AWS::EC2::Subnet"
+  },
   "VPC": {
    "Properties": {
-    "CidrBlock": "10.0.0.0/24",
+    "CidrBlock": "10.0.0.0/16",
     "Tags": [
      {
       "Key": "Name",
@@ -148,6 +296,108 @@
     }
    },
    "Type": "AWS::ElasticLoadBalancingV2::TargetGroup"
+  },
+  "inBoundEphemeralEntry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": false,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "1024",
+     "To": "65535"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "102"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
+  },
+  "inboundHTTPentry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": false,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "80",
+     "To": "80"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "100"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
+  },
+  "inboundSSHentry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": false,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "22",
+     "To": "22"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "101"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
+  },
+  "outBoundHttpEntry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": true,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "80",
+     "To": "80"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "100"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
+  },
+  "outBoundHttpsEntry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": true,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "443",
+     "To": "443"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "101"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
+  },
+  "outBoundResponseEntry": {
+   "Properties": {
+    "CidrBlock": "0.0.0.0/0",
+    "Egress": true,
+    "NetworkAclId": {
+     "Ref": "NetworkACL"
+    },
+    "PortRange": {
+     "From": "1024",
+     "To": "65535"
+    },
+    "Protocol": "6",
+    "RuleAction": "allow",
+    "RuleNumber": "102"
+   },
+   "Type": "AWS::EC2::NetworkAclEntry"
   }
  }
 }
