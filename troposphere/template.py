@@ -70,6 +70,7 @@ route = ec2.Route(
 )
 template.add_resource(route)
 
+
 #Creation of Subnet with same CidrBlock as VPC and the VPC id from the previously created.
 subnet = ec2.Subnet(
     "TestSubnet",
@@ -83,6 +84,14 @@ subnet = ec2.Subnet(
 )
 
 template.add_resource(subnet)
+
+#Associating the routetable with subnet
+subnetRouteTableAssociation = ec2.SubnetRouteTableAssociation(
+    "SubnetRouteTableAssociation",
+    SubnetId=Ref(subnet),
+    RouteTableId=Ref(routeTable)
+)
+template.add_resource(subnetRouteTableAssociation)
 
 #Creating an output value to the subnet for hypothetical future use on other stacks
 output_subnet = Output("outputSubnet")
@@ -140,6 +149,46 @@ inBoundSSHEntry = ec2.NetworkAclEntry(
     CidrBlock="0.0.0.0/0"
 )
 template.add_resource(inBoundSSHEntry)
+
+#OutBound ACL entry for HTTP Traffic
+outBoundHttpEntry = ec2.NetworkAclEntry(
+    "outBoundHttpEntry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="100",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="80", From="80"),
+    Egress="true",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(outBoundHttpEntry)
+
+#OutBound ACL entry for HTTPS Traffic
+outBoundHttpEntry = ec2.NetworkAclEntry(
+    "outBoundHttpEntry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="101",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="443", From="443"),
+    Egress="true",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(outBoundHttpEntry)
+
+#Outbound ACL entry for ports 1024-65545 for SSH response
+outBoundResponseEntry = ec2.NetworkAclEntry(
+    "outBoundResponseEntry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="102",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="65535", From="1024"),
+    Egress="true",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(outBoundResponseEntry)
+
 
 #Subnet Network ACL Associaton
 subnetAclAssociation = ec2.SubnetNetworkAclAssociation(
