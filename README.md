@@ -26,12 +26,14 @@ The file template.py is set to generate both, JSON and YAML, for testing purpose
 
 # Creating the AWS Resources
 
+First we will need to create a KeyPair for our EC2 Instance to access via SSH. We can do this through the AWS Console EC2-->KeyPairs.
+
 We can create our AWS Resources in 2 way.
 
 - From the AWS Console: CloudFormation --> Stacks --> Create Stack. And Uploading our YAML or JSON file.
 - From aws cli using the next command:
 
-    `$ aws cloudformation create-stack --stack-name STACK_NAME --template-body file://troposphere-exercise.yaml`
+    `$ aws cloudformation create-stack --stack-name STACK_NAME --template-body file://troposphere-exercise.yaml --parameters keyname=KEYNAME_OF_KEYPAIR_CREATED`
     
     Besides, in order to use AWS cli we must install it and configure it following [this](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) steps.
 

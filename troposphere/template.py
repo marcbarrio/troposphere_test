@@ -3,9 +3,10 @@
 from __future__ import print_function
 
 from troposphere import ec2
-from troposphere import Tags, Ref, Sub, Export, ImportValue, Base64
+from troposphere import Tags, Ref, Sub, Export, ImportValue, Base64, GetAtt
 from troposphere import Template, Output
 from troposphere import elasticloadbalancingv2 as elb
+from troposphere import Parameter
 
 ###########Comments#############
 #All these resources: Subnet, VPC, Ec2 Instance & LoadBalancer are created within the same CloudFormation Stack
@@ -16,16 +17,58 @@ from troposphere import elasticloadbalancingv2 as elb
 
 template = Template()
 
+
+# Parameter Creation
+keyname = Parameter(
+    "KeyName",
+    Description="Name of an EC2 KeyPair to enable SSH",
+    Type="AWS::EC2::KeyPair::KeyName"
+)
+template.add_parameter(keyname)
+
 #Creation of VPC with CDIR Block 10.0.0.0/24 And a Tag name
-vpc = template.add_resource(
-    ec2.VPC(
+vpc = ec2.VPC(
         'VPC',
         CidrBlock="10.0.0.0/16",
         Tags=Tags(
             Name="VPC for troposphere exercise"
         )
     )
+template.add_resource(vpc)
+
+#Creation of the internet gateway
+internetGateway = ec2.InternetGateway(
+    "InternetGateway",
+    Tags=Tags(
+        Description="Internet gateway attached to VPC"
+    )
 )
+template.add_resource(internetGateway)
+
+gatewayAttachment = ec2.VPCGatewayAttachment(
+    "GatewayAttachment",
+    VpcId=Ref(vpc),
+    InternetGatewayId=Ref(internetGateway)
+)
+template.add_resource(gatewayAttachment)
+
+routeTable = ec2.RouteTable(
+    "RouteTable",
+    VpcId=Ref(vpc),
+    Tags=Tags(
+        Description="Routetable for our VPC"
+    )
+)
+template.add_resource(routeTable)
+
+route = ec2.Route(
+    "Route",
+    DependsOn="GatewayAttachment",
+    GatewayId=Ref(internetGateway),
+    DestinationCidrBlock="0.0.0.0/0",
+    RouteTableId=Ref(routeTable)
+)
+template.add_resource(route)
 
 #Creation of Subnet with same CidrBlock as VPC and the VPC id from the previously created.
 subnet = ec2.Subnet(
@@ -62,19 +105,7 @@ subnet2 = ec2.Subnet(
 
 template.add_resource(subnet2)
 
-#Creating the EC2 instance to hold our application
-ec2Instance = ec2.Instance("ApplicationInstance")
-#Ubuntu 20.04LTS ami ID //Free tier elegible
-ec2Instance.ImageId = "ami-064736ff8301af3ee"
-#Instance type t2.micro 1vCPU 1GiB Mem //Free tier elegible
-ec2Instance.InstanceType = "t2.micro"
-# If the subnet creation and the ec2 instance creation would be done in separate stacks (which would be the way to go if the subnet was to be used by more AWS resources)
-# we could add the value of the SubnetId with the Export output value we assigned to the subnet using the ImportValue function.
-ec2Instance.SubnetId = Ref(subnet)
-ec2Instance.Tags = [
-    {"Key" : "Name", "Value" : "Ec2 instance to hold our application"},
-    {"Key" : "Subnet", "Value" : "Belonging to the subnet 'TestSubnet'"}
-]
+
 
 #Using userdata for Ec2 to install Docker automatically since our application will be using docker.
 userDataDockerInstall = """
@@ -89,12 +120,11 @@ userDataDockerInstall = """
     sudo usermod -aG docker ubuntu
 """
 
-ec2Instance.UserData = Base64(userDataDockerInstall)
-
 #Creating security group for the instance in order to be able to access the desired port (80 in this case, can change if exposed port from the docker container changes) from any ip
 instancesg = ec2.SecurityGroup(
     "AppSecurityGroup",
     GroupDescription="Enable HTTP access to the instance",
+    VpcId=Ref(vpc),
     SecurityGroupIngress=[
         ec2.SecurityGroupRule(
             IpProtocol="tcp",
@@ -106,7 +136,31 @@ instancesg = ec2.SecurityGroup(
 )
 template.add_resource(instancesg)
 
-ec2Instance.SecurityGroups = [Ref(instancesg)]
+#Creating the EC2 instance to hold our application
+
+ec2Instance = ec2.Instance(
+    "ApplicationInstance",
+    ImageId="ami-064736ff8301af3ee",
+    InstanceType="t2.micro",
+    #SubnetId=Ref(subnet),
+    Tags=Tags(
+        Name="Ec2 instance to hold our application",
+        Subnet="Belonging to the subnet 'TestSubnet'"
+    ),
+    UserData=Base64(userDataDockerInstall),
+    #SecurityGroupIds=[GetAtt(instancesg,"GroupId")],
+    NetworkInterfaces=[
+        ec2.NetworkInterfaceProperty(
+            AssociatePublicIpAddress="true",
+            DeleteOnTermination="true",
+            GroupSet=[Ref(instancesg)],
+            SubnetId=Ref(subnet),
+            DeviceIndex="0"
+        )
+    ],
+    KeyName=Ref(keyname)
+)
+
 template.add_resource(ec2Instance)
 
 #Creating the loadbalancer 
