@@ -20,7 +20,7 @@ template = Template()
 vpc = template.add_resource(
     ec2.VPC(
         'VPC',
-        CidrBlock="10.0.0.0/24",
+        CidrBlock="10.0.0.0/16",
         Tags=Tags(
             Name="VPC for troposphere exercise"
         )
@@ -38,15 +38,6 @@ subnet = ec2.Subnet(
         ZoneBlock="eu-west-3c (Paris) & 10.0.0.0/24"
     )
 )
-#subnet = ec2.Subnet("TestSubnet")
-
-#subnet.AvailabilityZone = "eu-west-3c"
-#subnet.CidrBlock = "10.0.0.0/24"
-#subnet.VpcId = Ref(vpc)
-#subnet.Tags = [
-#    {"Key" : "Name", "Value" : "Subnet for troposphere exercise"},
-#    {"Key" : "Zone & Block", "Value" : "eu-west-3c (Paris) & 10.0.0.0/24"}
-#]
 
 template.add_resource(subnet)
 
@@ -56,6 +47,20 @@ output_subnet.Value = Ref(subnet)
 output_subnet.Export = Export(Sub("${AWS::StackName}-" + subnet.title))
 
 template.add_output(output_subnet)
+
+#Creating a 2nd Subnet for the minimum required in the ELB
+subnet2 = ec2.Subnet(
+    "TestSubnet2",
+    AvailabilityZone="eu-west-3a",
+    CidrBlock="10.0.1.0/24",
+    VpcId=Ref(vpc),
+    Tags=Tags(
+        Name="Subnet for ELB required input",
+        ZoneBlock="eu-west-3a (Paris) & 10.0.1.0/24"
+    )
+)
+
+template.add_resource(subnet2)
 
 #Creating the EC2 instance to hold our application
 ec2Instance = ec2.Instance("ApplicationInstance")
@@ -109,7 +114,7 @@ loadBalancer = elb.LoadBalancer(
     "ApplicationLoadBalancer",
     Name="ApplicationELB",
     Scheme="internet-facing",
-    Subnets=[Ref(subnet)],
+    Subnets=[Ref(subnet),Ref(subnet2)],
     Tags=Tags(
         Name="ApplicationELB"
     )
