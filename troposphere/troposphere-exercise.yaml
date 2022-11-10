@@ -57,6 +57,8 @@ Resources:
     Properties:
       Name: ApplicationELB
       Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt 'ELBSecurityGroup.GroupId'
       Subnets:
         - !Ref 'TestSubnet'
         - !Ref 'TestSubnet2'
@@ -64,6 +66,16 @@ Resources:
         - Key: Name
           Value: ApplicationELB
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  ELBSecurityGroup:
+    Properties:
+      GroupDescription: Security Group used by the Load Balancer
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+      VpcId: !Ref 'VPC'
+    Type: AWS::EC2::SecurityGroup
   GatewayAttachment:
     Properties:
       InternetGatewayId: !Ref 'InternetGateway'

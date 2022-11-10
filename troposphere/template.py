@@ -26,7 +26,6 @@ keyname = template.add_parameter(
     Type="AWS::EC2::KeyPair::KeyName"
     )
 )
-#template.add_parameter(keyname)
 
 #Creation of VPC with CDIR Block 10.0.0.0/24 And a Tag name
 vpc = template.add_resource(
@@ -38,7 +37,6 @@ vpc = template.add_resource(
         )
     )
 )
-#template.add_resource(vpc)
 
 #Creation of the internet gateway
 internetGateway = template.add_resource(
@@ -49,7 +47,6 @@ internetGateway = template.add_resource(
         )
     )
 )
-#template.add_resource(internetGateway)
 
 gatewayAttachment = template.add_resource(
     ec2.VPCGatewayAttachment(
@@ -58,7 +55,6 @@ gatewayAttachment = template.add_resource(
         InternetGatewayId=Ref(internetGateway)
     )
 )
-#template.add_resource(gatewayAttachment)
 
 routeTable = template.add_resource(
     ec2.RouteTable(
@@ -69,7 +65,6 @@ routeTable = template.add_resource(
         )
     )
 )
-#template.add_resource(routeTable)
 
 route = template.add_resource(
     ec2.Route(
@@ -80,7 +75,6 @@ route = template.add_resource(
         RouteTableId=Ref(routeTable)
     )
 )
-#template.add_resource(route)
 
 
 #Creation of Subnet with same CidrBlock as VPC and the VPC id from the previously created.
@@ -96,7 +90,6 @@ subnet = template.add_resource(
         )
     )
 )
-#template.add_resource(subnet)
 
 #Associating the routetable with subnet
 subnetRouteTableAssociation = template.add_resource(
@@ -106,7 +99,6 @@ subnetRouteTableAssociation = template.add_resource(
         RouteTableId=Ref(routeTable)
     )
 )
-#template.add_resource(subnetRouteTableAssociation)
 
 #Creating an output value to the subnet for hypothetical future use on other stacks
 output_subnet = Output("outputSubnet")
@@ -128,7 +120,6 @@ subnet2 = template.add_resource(
         )
     )
 )
-#template.add_resource(subnet2)
 
 # Creating ACL
 networkACL = template.add_resource(
@@ -140,7 +131,6 @@ networkACL = template.add_resource(
         )
     )
 )
-#template.add_resource(networkACL)
 
 #Inbound ACL entry for port 80 TCP (HTTP) traffic
 inBoundHTTPEntry = template.add_resource(
@@ -155,7 +145,6 @@ inBoundHTTPEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(inBoundHTTPEntry)
 
 #Inbound ACL entry for port 22 TCP (SSH) Traffic
 inBoundSSHEntry = template.add_resource(
@@ -170,7 +159,6 @@ inBoundSSHEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(inBoundSSHEntry)
 
 #InboundEphemeralPorts to allow updates and installs on ubuntu. This is not a very secure approach if we want to use ACLs as a main security tool besides security groups
 #A script could be created when in need for those ephemeral ports which would, via aws cli, create and enable this acl entry and delete it once there is no longer use for those
@@ -186,7 +174,6 @@ inBoundEphemeralEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(inBoundEphemeralEntry)
 
 #OutBound ACL entry for HTTP Traffic
 outBoundHttpEntry = template.add_resource(
@@ -201,7 +188,6 @@ outBoundHttpEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(outBoundHttpEntry)
 
 #OutBound ACL entry for HTTPS Traffic
 outBoundHttpsEntry = template.add_resource(
@@ -216,7 +202,6 @@ outBoundHttpsEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(outBoundHttpsEntry)
 
 #Outbound ACL entry for ephemeral ports 1024-65545 for SSH response
 outBoundResponseEntry = template.add_resource(
@@ -231,7 +216,6 @@ outBoundResponseEntry = template.add_resource(
         CidrBlock="0.0.0.0/0"
     )
 )
-#template.add_resource(outBoundResponseEntry)
 
 
 #Subnet Network ACL Associaton
@@ -242,7 +226,6 @@ subnetAclAssociation = template.add_resource(
         NetworkAclId=Ref(networkACL)
     )
 )
-#template.add_resource(subnetAclAssociation)
 
 userDataDockerInstall = [
     "#!/bin/bash -xe\n",
@@ -278,7 +261,6 @@ instancesg = template.add_resource(
         ]
     )
 )
-#template.add_resource(instancesg)
 
 #Creating the EC2 instance to hold our application
 
@@ -304,7 +286,23 @@ ec2Instance = template.add_resource(
         KeyName=Ref(keyname)
     )
 )
-#template.add_resource(ec2Instance)
+
+#Creating the security group for the loadbalancer
+elbSecurityGroup = template.add_resource(
+    ec2.SecurityGroup(
+        "ELBSecurityGroup",
+        GroupDescription="Security Group used by the Load Balancer",
+        VpcId=Ref(vpc),
+        SecurityGroupIngress=[
+            ec2.SecurityGroupRule(
+                IpProtocol="tcp",
+                FromPort="80",
+                ToPort="80",
+                CidrIp="0.0.0.0/0"
+            )
+        ]
+    )
+)
 
 #Creating the loadbalancer 
 loadBalancer = template.add_resource(
@@ -313,12 +311,12 @@ loadBalancer = template.add_resource(
         Name="ApplicationELB",
         Scheme="internet-facing",
         Subnets=[Ref(subnet),Ref(subnet2)],
+        SecurityGroups=[GetAtt(elbSecurityGroup,"GroupId")],
         Tags=Tags(
             Name="ApplicationELB"
         )
     )
 )
-#template.add_resource(loadBalancer)
 
 #Creating the target group for our application
 appTargetGroup = template.add_resource(
@@ -339,7 +337,6 @@ appTargetGroup = template.add_resource(
         VpcId=Ref(vpc)
     )
 )
-#template.add_resource(appTargetGroup)
 
 #Creating the listener to match with the target group within our load balancer
 #No need to create more listener rules since the only forwarding that our elb will be doing is redirecting to our app.
@@ -354,7 +351,6 @@ elbListener = template.add_resource(
         ]
     )
 )
-#template.add_resource(elbListener)
 
 
 # Export the CloudFormation script in yaml and json (for testing purposes even though only 1 is required)

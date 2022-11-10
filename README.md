@@ -42,6 +42,8 @@ We can create our AWS Resources in 2 way.
 
 # Deploying our app
 
+Note: We could overcomplicate things and in our ec2 bootstrap script (user data) we could manually add all files for the docker container to be deployed automatically but this will not be done.
+
 Our app is made on a docker platform. In order to deploy it to our EC2 instance either we will have a CI/CD tool with a project configured to deploy and execute the docker compose script there. 
 
 Or we do it manually, uploading the files in the "Docker" directory and executing:
