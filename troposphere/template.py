@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from troposphere import ec2
-from troposphere import Tags, Ref, Sub, Export, ImportValue, Base64, GetAtt
+from troposphere import Tags, Ref, Sub, Export, ImportValue, Base64, GetAtt, Join
 from troposphere import Template, Output
 from troposphere import elasticloadbalancingv2 as elb
 from troposphere import Parameter
@@ -150,6 +150,20 @@ inBoundSSHEntry = ec2.NetworkAclEntry(
 )
 template.add_resource(inBoundSSHEntry)
 
+#InboundEphemeralPorts to allow updates and installs on ubuntu. This is not a very secure approach if we want to use ACLs as a main security tool besides security groups
+#A script could be created when in need for those ephemeral ports which would, via aws cli, create and enable this acl entry and delete it once there is no longer use for those ports.
+inBoundEphemeralEntry = ec2.NetworkAclEntry(
+    "inBoundEphemeralEntry",
+    NetworkAclId=Ref(networkACL),
+    RuleNumber="102",
+    Protocol="6",
+    PortRange=ec2.PortRange(To="65535", From="1024"),
+    Egress="false",
+    RuleAction="allow",
+    CidrBlock="0.0.0.0/0"
+)
+template.add_resource(inBoundEphemeralEntry)
+
 #OutBound ACL entry for HTTP Traffic
 outBoundHttpEntry = ec2.NetworkAclEntry(
     "outBoundHttpEntry",
@@ -164,8 +178,8 @@ outBoundHttpEntry = ec2.NetworkAclEntry(
 template.add_resource(outBoundHttpEntry)
 
 #OutBound ACL entry for HTTPS Traffic
-outBoundHttpEntry = ec2.NetworkAclEntry(
-    "outBoundHttpEntry",
+outBoundHttpsEntry = ec2.NetworkAclEntry(
+    "outBoundHttpsEntry",
     NetworkAclId=Ref(networkACL),
     RuleNumber="101",
     Protocol="6",
@@ -174,9 +188,9 @@ outBoundHttpEntry = ec2.NetworkAclEntry(
     RuleAction="allow",
     CidrBlock="0.0.0.0/0"
 )
-template.add_resource(outBoundHttpEntry)
+template.add_resource(outBoundHttpsEntry)
 
-#Outbound ACL entry for ports 1024-65545 for SSH response
+#Outbound ACL entry for ephemeral ports 1024-65545 for SSH response
 outBoundResponseEntry = ec2.NetworkAclEntry(
     "outBoundResponseEntry",
     NetworkAclId=Ref(networkACL),
@@ -199,17 +213,29 @@ subnetAclAssociation = ec2.SubnetNetworkAclAssociation(
 template.add_resource(subnetAclAssociation)
 
 #Using userdata for Ec2 to install Docker automatically since our application will be using docker.
-userDataDockerInstall = """
-    #!/bin/bash -xe
-    sudo apt-get update
-    sudo apt-get install ca-certificates curl gnupg lsb-release
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    sudo apt-get update
-    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    sudo usermod -aG docker ubuntu
-"""
+#userDataDockerInstall = """
+#    #!/bin/bash -xe
+#    sudo apt-get update
+#    sudo apt-get install ca-certificates curl gnupg lsb-release
+#    sudo mkdir -p /etc/apt/keyrings
+#    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+#    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+#    sudo apt-get update
+#    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+#    sudo usermod -aG docker ubuntu
+#"""
+
+userDataDockerInstall = [
+    "#!/bin/bash -xe\n",
+    "sudo apt-get update\n",
+    "sudo apt-get install -y ca-certificates curl gnupg lsb-release\n",
+    "sudo mkdir -p /etc/apt/keyrings\n",
+    "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n",
+    """echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null\n""",
+    "sudo apt-get update\n",
+    "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin\n",
+    "sudo usermod -aG docker ubuntu\n"
+]
 
 #Creating security group for the instance in order to be able to access the desired port (80 in this case, can change if exposed port from the docker container changes) from any ip
 instancesg = ec2.SecurityGroup(
@@ -244,7 +270,7 @@ ec2Instance = ec2.Instance(
         Name="Ec2 instance to hold our application",
         Subnet="Belonging to the subnet 'TestSubnet'"
     ),
-    UserData=Base64(userDataDockerInstall),
+    UserData=Base64(Join("",userDataDockerInstall)),
     #SecurityGroupIds=[GetAtt(instancesg,"GroupId")],
     NetworkInterfaces=[
         ec2.NetworkInterfaceProperty(
