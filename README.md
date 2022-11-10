@@ -4,6 +4,7 @@ All these resources: **Subnet, VPC, Ec2 Instance & LoadBalancer** are created wi
 
 In a real environment those would be created within separate stacks (Different scripts for VPC, LoadBalancer, Ec2 instance) for when we need to change/remove any of them it would not affect to the rest.
 
+For big templates like this one we could create a stack of python variables or stack parameters that would manage resource names, ip ranges,... or other important values.
 Inside the Python script (template.py) there are several comments that explain each part and some thoughts.
 
 # Creating the template
