@@ -1,5 +1,8 @@
 # Comments
-URL to application: [marcbarrio.hopto.org](http://marcbarrio.hopto.org)
+URL to default ELB action: [marcbarrio.hopto.org](http://marcbarrio.hopto.org)
+URL to EU West 3c Instance: [marcbarrio.hopto.org/1](http://marcbarrio.hopto.org/1)
+URL to EU West 3a Instance: [marcbarrio.hopto.org/2](http://marcbarrio.hopto.org/2)
+
 All these resources: **Subnet, VPC, Ec2 Instance & LoadBalancer** are created within the same CloudFormation Stack.
 
 In a real environment those would be created within separate stacks (Different scripts for VPC, LoadBalancer, Ec2 instance) for when we need to change/remove any of them it would not affect to the rest.
@@ -7,6 +10,8 @@ In a real environment those would be created within separate stacks (Different s
 For big templates like this one we could create a stack of python variables or stack parameters that would manage resource names, ip ranges,... or other important values.
 Inside the Python script (template.py) there are several comments that explain each part and some thoughts.
 
+
+NOTE: Since on the exercise it put "share your endpoint" I misunderstood and believed it was only 1 endpoint required. 
 # Creating the template
 
 ## Requirements
@@ -29,7 +34,8 @@ The file template.py is set to generate both, JSON and YAML, for testing purpose
 
 # Creating the AWS Resources
 
-First we will need to create a KeyPair for our EC2 Instance to access via SSH. We can do this through the AWS Console EC2-->KeyPairs.
+First we will need to create a KeyPair for our EC2 Instances to access via SSH. We can do this through the AWS Console EC2-->KeyPairs.
+Both instances use the same KeyPair in order to simplify things.
 
 We can create our AWS Resources in 2 way.
 

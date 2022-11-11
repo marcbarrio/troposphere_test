@@ -36,9 +36,40 @@ Resources:
           SubnetId: !Ref 'TestSubnet'
       Tags:
         - Key: Name
-          Value: Ec2 instance to hold our application
+          Value: Ec2 instance to hold our application in eu-west-3c
         - Key: Subnet
           Value: Belonging to the subnet 'TestSubnet'
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - "#!/bin/bash -xe\n"
+            - "sudo apt-get update\n"
+            - "sudo apt-get install -y ca-certificates curl gnupg lsb-release\n"
+            - "sudo mkdir -p /etc/apt/keyrings\n"
+            - "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n"
+            - "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list\
+              \ > /dev/null\n"
+            - "sudo apt-get update\n"
+            - "sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin\n"
+            - "sudo usermod -aG docker ubuntu\n"
+    Type: AWS::EC2::Instance
+  ApplicationInstance2:
+    Properties:
+      ImageId: ami-064736ff8301af3ee
+      InstanceType: t2.micro
+      KeyName: !Ref 'KeyName'
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref 'AppSecurityGroup'
+          SubnetId: !Ref 'TestSubnet2'
+      Tags:
+        - Key: Name
+          Value: Ec2 Instance to hold our application in eu-west-3a
+        - Key: Subnet
+          Value: Belonging to the subnet 'TestSubnet2'
       UserData: !Base64
         Fn::Join:
           - ''
@@ -76,6 +107,30 @@ Resources:
           ToPort: '80'
       VpcId: !Ref 'VPC'
     Type: AWS::EC2::SecurityGroup
+  EuWest3aListenerRule:
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'app80bis'
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /euwest3a/*
+      ListenerArn: !Ref 'Listener'
+      Priority: '2'
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  EuWest3cListenerRule:
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'app80'
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /euwest3c/*
+      ListenerArn: !Ref 'Listener'
+      Priority: '1'
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
   GatewayAttachment:
     Properties:
       InternetGatewayId: !Ref 'InternetGateway'
@@ -117,6 +172,16 @@ Resources:
           Value: Routetable for our VPC
       VpcId: !Ref 'VPC'
     Type: AWS::EC2::RouteTable
+  Subnet2NetworkAclAssociation:
+    Properties:
+      NetworkAclId: !Ref 'NetworkACL'
+      SubnetId: !Ref 'TestSubnet2'
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+  Subnet2RouteTableAssociation:
+    Properties:
+      RouteTableId: !Ref 'RouteTable'
+      SubnetId: !Ref 'TestSubnet2'
+    Type: AWS::EC2::SubnetRouteTableAssociation
   SubnetNetworkAclAssociation:
     Properties:
       NetworkAclId: !Ref 'NetworkACL'
@@ -169,6 +234,23 @@ Resources:
       Protocol: HTTP
       Targets:
         - Id: !Ref 'ApplicationInstance'
+          Port: '80'
+      UnhealthyThresholdCount: '3'
+      VpcId: !Ref 'VPC'
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  app80bis:
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: '10'
+      HealthyThresholdCount: '4'
+      Matcher:
+        HttpCode: '200'
+      Name: appTarget2
+      Port: '80'
+      Protocol: HTTP
+      Targets:
+        - Id: !Ref 'ApplicationInstance2'
           Port: '80'
       UnhealthyThresholdCount: '3'
       VpcId: !Ref 'VPC'

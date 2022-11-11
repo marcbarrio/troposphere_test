@@ -6,5 +6,6 @@ services:
     restart: unless-stopped
     volumes:
     - ./content:/usr/share/nginx/html
+    - ./nginxconf-euwest3a:/etc/nginx/conf.d
     ports:
     - 80:80

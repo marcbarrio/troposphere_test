@@ -107,7 +107,7 @@ output_subnet.Export = Export(Sub("${AWS::StackName}-" + subnet.title))
 
 template.add_output(output_subnet)
 
-#Creating a 2nd Subnet for the minimum required in the ELB
+#Creating a 2nd Subnet
 subnet2 = template.add_resource(
     ec2.Subnet(
         "TestSubnet2",
@@ -118,6 +118,15 @@ subnet2 = template.add_resource(
             Name="Subnet for ELB required input",
             ZoneBlock="eu-west-3a (Paris) & 10.0.1.0/24"
         )
+    )
+)
+
+#Associationg the routetable with subnet 2
+subnet2RouteTableAssociation = template.add_resource(
+    ec2.SubnetRouteTableAssociation(
+        "Subnet2RouteTableAssociation",
+        SubnetId=Ref(subnet2),
+        RouteTableId=Ref(routeTable)
     )
 )
 
@@ -227,6 +236,16 @@ subnetAclAssociation = template.add_resource(
     )
 )
 
+#Subnet 2 Network ACL Association
+subnet2AclAssociation = template.add_resource(
+    ec2.SubnetNetworkAclAssociation(
+        "Subnet2NetworkAclAssociation",
+        SubnetId=Ref(subnet2),
+        NetworkAclId=Ref(networkACL)
+    )
+)
+
+
 userDataDockerInstall = [
     "#!/bin/bash -xe\n",
     "sudo apt-get update\n",
@@ -270,7 +289,7 @@ ec2Instance = template.add_resource(
         ImageId="ami-064736ff8301af3ee",
         InstanceType="t2.micro",
         Tags=Tags(
-            Name="Ec2 instance to hold our application",
+            Name="Ec2 instance to hold our application in eu-west-3c",
             Subnet="Belonging to the subnet 'TestSubnet'"
         ),
         UserData=Base64(Join("",userDataDockerInstall)),
@@ -280,6 +299,30 @@ ec2Instance = template.add_resource(
                 DeleteOnTermination="true",
                 GroupSet=[Ref(instancesg)],
                 SubnetId=Ref(subnet),
+                DeviceIndex="0"
+            )
+        ],
+        KeyName=Ref(keyname)
+    )
+)
+
+#Creating 2nd Application instance for the other AZ
+ec2Instance2 = template.add_resource(
+    ec2.Instance(
+        "ApplicationInstance2",
+        ImageId="ami-064736ff8301af3ee",
+        InstanceType="t2.micro",
+        Tags=Tags(
+            Name="Ec2 Instance to hold our application in eu-west-3a",
+            Subnet="Belonging to the subnet 'TestSubnet2'"
+        ),
+        UserData=Base64(Join("",userDataDockerInstall)),
+        NetworkInterfaces=[
+            ec2.NetworkInterfaceProperty(
+                AssociatePublicIpAddress="true",
+                DeleteOnTermination="true",
+                GroupSet=[Ref(instancesg)],
+                SubnetId=Ref(subnet2),
                 DeviceIndex="0"
             )
         ],
@@ -318,7 +361,7 @@ loadBalancer = template.add_resource(
     )
 )
 
-#Creating the target group for our application
+#Creating the target group for our application in instance 1
 appTargetGroup = template.add_resource(
     elb.TargetGroup(
         "app80",
@@ -338,8 +381,28 @@ appTargetGroup = template.add_resource(
     )
 )
 
-#Creating the listener to match with the target group within our load balancer
-#No need to create more listener rules since the only forwarding that our elb will be doing is redirecting to our app.
+#Creating target group fro our application in instance 2
+appTargetGroup2 = template.add_resource(
+    elb.TargetGroup(
+        "app80bis",
+        HealthCheckIntervalSeconds="30",
+        HealthCheckProtocol="HTTP",
+        HealthCheckTimeoutSeconds="10",
+        HealthyThresholdCount="4",
+        Matcher=elb.Matcher(HttpCode="200"),
+        Name="appTarget2",
+        Port="80",
+        Protocol="HTTP",
+        Targets=[
+            elb.TargetDescription(Id=Ref(ec2Instance2), Port="80")
+        ],
+        UnhealthyThresholdCount="3",
+        VpcId=Ref(vpc)
+
+    )
+)
+
+#Creating the listener with the default listener rule which will match with instance 1 within our load balancer
 elbListener = template.add_resource(
     elb.Listener(
         "Listener",
@@ -352,6 +415,35 @@ elbListener = template.add_resource(
     )
 )
 
+#Creating the listener rule to match instance 1 on AZ Eu West 3c (Not needed since our default action is to forward there but added for practice purposes)
+elbeuwest3cListenerRule = template.add_resource(
+    elb.ListenerRule(
+        "EuWest3cListenerRule",
+        ListenerArn=Ref(elbListener),
+        Conditions=[elb.Condition(Field="path-pattern", Values=["/euwest3c/*"])],
+        Actions=[
+            elb.ListenerRuleAction(
+                Type="forward", TargetGroupArn=Ref(appTargetGroup)
+            )
+        ],
+        Priority="1"
+    )
+)
+
+#Creating the listener rule to match instance 2 on AZ Eu West 3a
+elbeuwest3aListenerRule = template.add_resource(
+    elb.ListenerRule(
+        "EuWest3aListenerRule",
+        ListenerArn=Ref(elbListener),
+        Conditions=[elb.Condition(Field="path-pattern", Values=["/euwest3a/*"])],
+        Actions=[
+            elb.ListenerRuleAction(
+                Type="forward", TargetGroupArn=Ref(appTargetGroup2)
+            )
+        ],
+        Priority="2"
+    )
+)
 
 # Export the CloudFormation script in yaml and json (for testing purposes even though only 1 is required)
 with open('troposphere-exercise.yaml','w') as f:

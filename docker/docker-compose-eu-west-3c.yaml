@@ -1,0 +1,11 @@
+version: "3"
+services:
+  app:
+    image: nginx:stable
+    container_name: nginx-app
+    restart: unless-stopped
+    volumes:
+    - ./content:/usr/share/nginx/html
+    - ./nginxconf:/etc/nginx/conf.d
+    ports:
+    - 80:80
